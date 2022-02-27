@@ -1,4 +1,5 @@
 import pyodbc
+from queries import init_tables_query, insert_tables_query
 
 class DataAccessLayer:
     def __init__(self, con_driver, server_name, db_name, uid, pwd):
@@ -38,6 +39,28 @@ class DataAccessLayer:
             except:
                 print('failed! re-check your program')
 
+    def init_tables(self, li_queries):
+        cur = self.conn.cursor()
+        for query in li_queries:
+            try:
+                cur.execute(query)
+                print('init table success')
+            except:
+                print('init table failed')
+        cur.close()
+    
+    def insert_data(self, data_path, li_queries):
+        # preprocess data: lọc null, handle outliners
+        
+        # insert data
+        cur = self.conn.cursor()
+        for query in li_queries:
+            try:
+                cur.execute(query)
+                print('init table success')
+            except:
+                print('init table failed')
+        cur.close()
 
 if __name__ == '__main__':
     con_db = DataAccessLayer('ODBC Driver 18 for SQL Server',
@@ -45,4 +68,5 @@ if __name__ == '__main__':
                             'DataWarehouse_MarketingAnalytics',
                             'sa',
                             'nghoanglong1712')
-        
+    con_db.init_tables(init_tables_query)
+    
