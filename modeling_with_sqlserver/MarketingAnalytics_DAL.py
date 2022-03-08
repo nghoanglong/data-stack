@@ -1,5 +1,6 @@
 import pyodbc
 from queries import init_tables_query, insert_tables_query
+from preprocess_data import DataPipeLine
 
 class DataAccessLayer:
     def __init__(self, con_driver, server_name, db_name, uid, pwd):
@@ -50,16 +51,18 @@ class DataAccessLayer:
         cur.close()
     
     def insert_data(self, data_path, li_queries):
-        # preprocess data: lọc null, handle outliners
-        
+        # preprocess data: lọc null
+        datapip = DataPipeLine(data_path)
+        datapip.HandlingNullData()
+
         # insert data
         cur = self.conn.cursor()
         for query in li_queries:
             try:
                 cur.execute(query)
-                print('init table success')
+                print('isert success')
             except:
-                print('init table failed')
+                print('insert failed')
         cur.close()
 
 if __name__ == '__main__':
