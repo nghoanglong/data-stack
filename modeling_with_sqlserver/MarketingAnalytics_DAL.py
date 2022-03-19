@@ -1,6 +1,7 @@
 import pyodbc
-from queries import init_tables_query, insert_tables_query
+import pandas as pd
 from preprocess_data import DataPipeLine
+from queries import *
 
 class DataAccessLayer:
     def __init__(self, con_driver, server_name, db_name, uid, pwd):
@@ -33,7 +34,7 @@ class DataAccessLayer:
                                   DATABASE={2}; \
                                   UID={3}; \
                                   PWD={4}; \
-                                  Encrypt=yes;TrustServerCertificate=yes;".format(con_driver, server_name, 'master', uid, pwd),
+                                  Encrypt=yes;TrustServerCertificate=yes;".format(con_driver, server_name, db_name, uid, pwd),
                                   autocommit=True)
                 print('create and connect {0} success'.format(db_name))
                 self.conn = db_conn
@@ -50,26 +51,59 @@ class DataAccessLayer:
                 print('init table failed')
         cur.close()
     
-    def insert_data(self, data_path, li_queries):
-        # preprocess data: lọc null
-        datapip = DataPipeLine(data_path)
-        datapip.HandlingNullData()
+    
+    def insert_by_dataframe(self, cur, insert_query, data, table_name):
+        try:
+            for idx, row in data.iterrows():
+                cur.execute(insert_query, list(row))
+            
+            print(f"insert {table_name} success")
+        except:
+            print(f"insert {table_name} failed")
+        
 
-        # insert data
+    def insert_data(self, data_path):
+        data_pip = DataPipeLine.preprocess_data(data_path)
+        df = data_pip.data
         cur = self.conn.cursor()
-        for query in li_queries:
-            try:
-                cur.execute(query)
-                print('isert success')
-            except:
-                print('insert failed')
-        cur.close()
+
+        data_dim_cus = df[['User_ID', 'Year_Birth', 'Education', 'Marital_Status', 'Income', 'Kidhome', 'Teenhome', 'Country']].copy(deep=True)
+        self.insert_by_dataframe(cur, insert_dim_customer, data_dim_cus, "dim_customer")
+
+        data_dim_date = pd.to_datetime(df['Date_Enroll'].copy(deep=True))
+        data_dim_date.drop_duplicates(inplace=True)
+
+        try:
+            for idx, value in data_dim_date.items():
+                cur.execute(insert_dim_date, [value, value.year, value.month, value.day])
+            print("insert dim_date success")
+        except:
+            print("insert dim_date failed")
+
+        data_fact_ma = df[['User_ID', 'Date_Enroll', 'NumDealsPurchases', 'NumWebPurchases', 'NumCatalogPurchases', 'NumStorePurchases' 
+                        , 'NumWebVisitsMonth', 'MntWines', 'MntFruits', 'MntFishs', 'MntSweets', 'MntGolds', 'MntMeats', 'Response', 'Complain'
+                        , 'Recency']].copy(deep=True)
+        
+        data_fact_ma["total_campaigns_accepted"] = df["AcceptedCmp1"] + \
+                                                df["AcceptedCmp2"] + \
+                                                df["AcceptedCmp3"] + \
+                                                df["AcceptedCmp4"] + \
+                                                df["AcceptedCmp5"]
+
+        data_fact_ma["total_spent"] = data_fact_ma["MntWines"] + \
+                                    data_fact_ma["MntFruits"] + \
+                                    data_fact_ma["MntMeats"] + \
+                                    data_fact_ma["MntFishs"] + \
+                                    data_fact_ma["MntSweets"] + \
+                                    data_fact_ma["MntGolds"]
+        self.insert_by_dataframe(cur, insert_fact, data_fact_ma, "fact_ma")
 
 if __name__ == '__main__':
     con_db = DataAccessLayer('ODBC Driver 18 for SQL Server',
                             'localhost',
                             'DataWarehouse_MarketingAnalytics',
                             'sa',
-                            'nghoanglong1712')
+                            'xxxxxxxxxxx')
     con_db.init_tables(init_tables_query)
+    con_db.insert_data("marketing_data.csv")
     
